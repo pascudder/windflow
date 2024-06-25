@@ -1,20 +1,22 @@
 import torch
 import torch.nn as nn
 
-class SmoothnessLoss(nn.Module):
+class SmoothnessLoss3D(nn.Module):
     def __init__(self):
-        super(SmoothnessLoss, self).__init__()
+        super(SmoothnessLoss3D, self).__init__()
 
     def forward(self, flows, mask=None):
-        gradx = torch.abs(flows[:,:,:,:-1] - flows[:,:,:,1:])
-        grady = torch.abs(flows[:,:,:-1,:] - flows[:,:,1:,:])
+        gradx = torch.abs(flows[:,:,:,:,:-1] - flows[:,:,:,:,1:])
+        grady = torch.abs(flows[:,:,:,:-1,:] - flows[:,:,:,1:,:])
+        gradz = torch.abs(flows[:,:,:-1,:,:] - flows[:,:,1:,:,:])
         normalize = 1.
         if isinstance(mask, torch.Tensor):
-            gradx *= mask[:,:,:,:-1]
-            grady *= mask[:,:,:-1,:]
+            gradx *= mask[:,:,:,:,:-1]
+            grady *= mask[:,:,:,:-1,:]
+            gradz *= mask[:,:,:-1,:,:]
             normalize = torch.mean(mask)
-        loss_smooth = (torch.mean(gradx) + torch.mean(grady)) / normalize
-        return loss_smooth 
+        loss_smooth = (torch.mean(gradx) + torch.mean(grady) + torch.mean(gradz)) / normalize
+        return loss_smooth
 
 class CharbonnierLoss(nn.Module):
     def __init__(self, alpha, eps=1e-6):
@@ -30,8 +32,8 @@ class CharbonnierLoss(nn.Module):
             norm = torch.mean(mask)
         return torch.mean(err) / norm
     
-def EPE(input_flow, target_flow):
-    return torch.norm(target_flow-input_flow,p=2,dim=1).mean()
+def EPE3D(input_flow, target_flow):
+    return torch.norm(target_flow-input_flow, p=2, dim=1).mean()
 
 class L1(nn.Module):
     def __init__(self):
@@ -73,13 +75,14 @@ class L2Loss(nn.Module):
         return lossvalue #+ epevalue
     
     
-class RMSVDLoss(nn.Module):
+class RMSVDLoss3D(nn.Module):
     def __init__(self):
-        super(RMSVDLoss, self).__init__()
+        super(RMSVDLoss3D, self).__init__()
     
     def forward(self, output, target):
-        # output and target shape (N, 2, H, W)
+        # output and target shape (N, 3, D, H, W)
         u_err = (output[:,0] - target[:,0])**2
         v_err = (output[:,1] - target[:,1])**2
-        rmsvd = (u_err.mean() + v_err.mean())**0.5
+        w_err = (output[:,2] - target[:,2])**2
+        rmsvd = (u_err.mean() + v_err.mean() + w_err.mean())**0.5
         return rmsvd

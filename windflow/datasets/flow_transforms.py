@@ -34,25 +34,9 @@ class BaseTransform(object):
 
 
 class ToTensor(BaseTransform):
-    """ Converts a 4D numpy.ndarray or a list of 3D numpy.ndarrays into a
-    4D torch.Tensor. Unlike the torchvision implementation, no normalization is
-    applied to the values of the inputs.
-
-    Args:
-        images_order: str: optional, default 'HWC'
-            Must be one of {'CHW', 'HWC'}. Indicates whether the input images
-            have the channels first or last.
-        flows_order: str: optional, default 'HWC'
-            Must be one of {'CHW', 'HWC'}. Indicates whether the input flows
-            have the channels first or last.
-        fp16: bool: optional, default False
-            If True, the tensors use have-precision floating point.
-        device: str or torch.device: optional, default 'cpu'
-            Name of the torch device where the tensors will be put in.
-    """
     def __init__(self,
-                 images_order: str = 'HWC',
-                 flows_order: str = 'HWC',
+                 images_order: str = 'DHWC',
+                 flows_order: str = 'DHWC',
                  fp16: bool = False,
                  device: Any = 'cpu') -> None:
         self.images_order = images_order.upper()
@@ -69,10 +53,10 @@ class ToTensor(BaseTransform):
             flows = np.stack(flows, axis=0)
         images = torch.from_numpy(images)
         flows = torch.from_numpy(flows)
-        if self.images_order == 'HWC':
-            images = images.permute(0, 3, 1, 2)
-        if self.flows_order == 'HWC':
-            flows = flows.permute(0, 3, 1, 2)
+        if self.images_order == 'DHWC':
+            images = images.permute(0, 4, 1, 2, 3)
+        if self.flows_order == 'DHWC':
+            flows = flows.permute(0, 4, 1, 2, 3)
         if self.fp16:
             images = images.half()
             flows = flows.half()
@@ -232,28 +216,24 @@ class CenterCrop(BaseTransform):
         return images, flows
 
 
-class Resize(BaseTransform):
-    """ Resizes the inputs to a new given size.
-
-    Args:
-        size: Tuple[int, int]:
-            The new size (height, width) of the inputs.
-    """
+class Resize3D(BaseTransform):
     def __init__(self,
-                 size: Tuple[int, int]) -> None:
+                 size: Tuple[int, int, int]) -> None:
         self.size = size
 
     def __call__(self,
                  images: torch.Tensor,
                  flows: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        yscale = float(self.size[0]) / images.shape[2]
-        xscale = float(self.size[1]) / images.shape[3]
+        zscale = float(self.size[0]) / images.shape[2]
+        yscale = float(self.size[1]) / images.shape[3]
+        xscale = float(self.size[2]) / images.shape[4]
         images = F.interpolate(
-            images, size=self.size, mode='bilinear', align_corners=False)
+            images, size=self.size, mode='trilinear', align_corners=False)
         flows = F.interpolate(
-            flows, size=self.size, mode='bilinear', align_corners=False)
-        flows[:, 0] *= yscale
-        flows[:, 1] *= xscale
+            flows, size=self.size, mode='trilinear', align_corners=False)
+        flows[:, 0] *= xscale
+        flows[:, 1] *= yscale
+        flows[:, 2] *= zscale
         return images, flows
 
 
@@ -623,4 +603,42 @@ class RandomRotate(BaseTransform):
             flows[1::2], rot_grid[:num_flows], mode='bilinear', align_corners=True)
         flows[1::2] = rotate_flow(flows[1::2], angle)
 
+        return images, flows
+
+class RandomCrop3D(BaseTransform):
+    def __init__(self,
+                 size: Tuple[int, int, int]) -> None:
+        self.size = size
+
+    def __call__(self,
+                 images: torch.Tensor,
+                 flows: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        _, _, d, h, w = images.shape
+        td, th, tw = self.size
+        if w == tw and h == th and d == td:
+            return images, flows
+
+        x1 = np.random.randint(0, w - tw)
+        y1 = np.random.randint(0, h - th)
+        z1 = np.random.randint(0, d - td)
+        images = images[:, :, z1:z1+td, y1:y1+th, x1:x1+tw]
+        flows = flows[:, :, z1:z1+td, y1:y1+th, x1:x1+tw]
+        return images, flows
+
+class RandomFlip3D(BaseTransform):
+    def __call__(self,
+                 images: torch.Tensor,
+                 flows: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        if np.random.rand() < 0.5:
+            images = torch.flip(images, dims=[4])  # Flip along W
+            flows = torch.flip(flows, dims=[4])
+            flows[:, 0] *= -1  # Flip X component
+        if np.random.rand() < 0.5:
+            images = torch.flip(images, dims=[3])  # Flip along H
+            flows = torch.flip(flows, dims=[3])
+            flows[:, 1] *= -1  # Flip Y component
+        if np.random.rand() < 0.5:
+            images = torch.flip(images, dims=[2])  # Flip along D
+            flows = torch.flip(flows, dims=[2])
+            flows[:, 2] *= -1  # Flip Z component
         return images, flows

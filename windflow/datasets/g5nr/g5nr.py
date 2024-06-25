@@ -49,28 +49,25 @@ def make_training_data(input_folder, output_folder, mode='train', patch_size=560
         time = data.time.values[0]
         timestamp = (time.astype('uint64') / 1e6).astype('uint32')
 
-        for lev in data.lev.values:
-            for lat_idx in np.arange(0, n_lats-patch_size, step):
-                for lon_idx in np.arange(0, n_lons-patch_size, step):
+        for lat_idx in np.arange(0, n_lats-patch_size, step):
+            for lon_idx in np.arange(0, n_lons-patch_size, step):
+                sub_ds = data.isel(lat=slice(lat_idx, lat_idx+patch_size),
+                                   lon=slice(lon_idx, lon_idx+patch_size))
+                lat_0 = sub_ds.lat.values[0]
+                lon_0 = sub_ds.lon.values[0]
+                sub_folder = os.path.join(output_folder, f'{lat_0}_{lon_0}')
+                sub_file = os.path.join(sub_folder, str(timestamp).zfill(11) + '.nc4')
+                if os.path.exists(sub_file):
+                    continue
 
-                    sub_ds = data.isel(lat=slice(lat_idx, lat_idx+patch_size),
-                                       lon=slice(lon_idx, lon_idx+patch_size))\
-                                     .sel(lev=lev)
-                    lat_0 = sub_ds.lat.values[0]
-                    lon_0 = sub_ds.lon.values[0]
-                    sub_folder = os.path.join(output_folder, f'{int(lev)}_{lat_0}_{lon_0}')
-                    sub_file = os.path.join(sub_folder, str(timestamp).zfill(11) + '.nc4')
-                    if os.path.exists(sub_file):
-                        continue
+                try:
+                    if not os.path.exists(sub_folder):
+                        os.makedirs(sub_folder)
+                except IOError:
+                    pass
 
-                    try:
-                        if not os.path.exists(sub_folder):
-                            os.makedirs(sub_folder)
-                    except IOError:
-                        pass
-
-                    sub_ds.to_netcdf(sub_file)
-                    print(f"Rank: {MPI_RANK}, Saved patch to file {sub_file}")
+                sub_ds.to_netcdf(sub_file)
+                print(f"Rank: {MPI_RANK}, Saved 3D patch to file {sub_file}")
 
 if __name__ == '__main__':
     

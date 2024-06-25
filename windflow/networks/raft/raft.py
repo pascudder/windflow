@@ -31,7 +31,6 @@ class RAFT(nn.Module):
             self.context_dim = cdim = 64
             args['corr_levels'] = 4
             args['corr_radius'] = 3
-        
         else:
             self.hidden_dim = hdim = 128
             self.context_dim = cdim = 128
@@ -46,51 +45,38 @@ class RAFT(nn.Module):
 
         # feature network, context network, and update block
         if args['small']:
-            self.fnet = SmallEncoder(input_dim=1, output_dim=128, norm_fn='instance', dropout=args['dropout'])        
-            self.cnet = SmallEncoder(input_dim=1, output_dim=hdim+cdim, norm_fn='none', dropout=args['dropout'])
-            self.update_block = SmallUpdateBlock(self.args, hidden_dim=hdim)
-
+            self.fnet = SmallEncoder3D(input_dim=1, output_dim=128, norm_fn='instance', dropout=args['dropout'])        
+            self.cnet = SmallEncoder3D(input_dim=1, output_dim=hdim+cdim, norm_fn='none', dropout=args['dropout'])
+            self.update_block = SmallUpdateBlock3D(self.args, hidden_dim=hdim)
         else:
-            self.fnet = BasicEncoder(input_dim=1, output_dim=256, norm_fn='instance', dropout=args['dropout'])        
-            self.cnet = BasicEncoder(input_dim=1, output_dim=hdim+cdim, norm_fn='batch', dropout=args['dropout'])
-            self.update_block = BasicUpdateBlock(self.args, hidden_dim=hdim)
-
-    def freeze_bn(self):
-        for m in self.modules():
-            if isinstance(m, nn.BatchNorm2d):
-                m.eval()
+            self.fnet = BasicEncoder3D(input_dim=1, output_dim=256, norm_fn='instance', dropout=args['dropout'])        
+            self.cnet = BasicEncoder3D(input_dim=1, output_dim=hdim+cdim, norm_fn='batch', dropout=args['dropout'])
+            self.update_block = BasicUpdateBlock3D(self.args, hidden_dim=hdim)
 
     def initialize_flow(self, img):
         """ Flow is represented as difference between two coordinate grids flow = coords1 - coords0"""
-        N, C, H, W = img.shape
-        coords0 = coords_grid(N, H//8, W//8).to(img.device)
-        coords1 = coords_grid(N, H//8, W//8).to(img.device)
+        N, C, D, H, W = img.shape
+        coords0 = coords_grid_3d(N, D//8, H//8, W//8).to(img.device)
+        coords1 = coords_grid_3d(N, D//8, H//8, W//8).to(img.device)
 
         # optical flow computed as difference: flow = coords1 - coords0
         return coords0, coords1
 
     def upsample_flow(self, flow, mask):
-        """ Upsample flow field [H/8, W/8, 2] -> [H, W, 2] using convex combination """
-        N, _, H, W = flow.shape
-        mask = mask.view(N, 1, 9, 8, 8, H, W)
+        """ Upsample flow field [D/8, H/8, W/8, 3] -> [D, H, W, 3] using convex combination """
+        N, _, D, H, W = flow.shape
+        mask = mask.view(N, 1, 27, 8, 8, 8, D, H, W)
         mask = torch.softmax(mask, dim=2)
 
-        up_flow = F.unfold(8 * flow, [3,3], padding=1)
-        up_flow = up_flow.view(N, 2, 9, 1, 1, H, W)
+        up_flow = F.unfold(8 * flow, [3,3,3], padding=1)
+        up_flow = up_flow.view(N, 3, 27, 1, 1, 1, D, H, W)
 
         up_flow = torch.sum(mask * up_flow, dim=2)
-        up_flow = up_flow.permute(0, 1, 4, 2, 5, 3)
-        return up_flow.reshape(N, 2, 8*H, 8*W)
-
+        up_flow = up_flow.permute(0, 1, 5, 2, 6, 3, 7, 4)
+        return up_flow.reshape(N, 3, 8*D, 8*H, 8*W)
 
     def forward(self, image1, image2, iters=12, flow_init=None, upsample=True, test_mode=False):
         """ Estimate optical flow between pair of frames """
-
-        #image1 = 2 * (image1 / 255.0) - 1.0
-        #image2 = 2 * (image2 / 255.0) - 1.0
-
-        #image1 = image1.contiguous()
-        #image2 = image2.contiguous()
 
         hdim = self.hidden_dim
         cdim = self.context_dim
@@ -102,9 +88,9 @@ class RAFT(nn.Module):
         fmap1 = fmap1.float()
         fmap2 = fmap2.float()
         if self.args['alternate_corr']:
-            corr_fn = AlternateCorrBlock(fmap1, fmap2, radius=self.args['corr_radius'])
+            corr_fn = AlternateCorrBlock3D(fmap1, fmap2, radius=self.args['corr_radius'])
         else:
-            corr_fn = CorrBlock(fmap1, fmap2, radius=self.args['corr_radius'])
+            corr_fn = CorrBlock3D(fmap1, fmap2, radius=self.args['corr_radius'])
 
         # run the context network
         with autocast(enabled=self.args['mixed_precision']):
@@ -131,7 +117,7 @@ class RAFT(nn.Module):
 
             # upsample predictions
             if up_mask is None:
-                flow_up = upflow8(coords1 - coords0)
+                flow_up = upflow8_3d(coords1 - coords0)
             else:
                 flow_up = self.upsample_flow(coords1 - coords0, up_mask)
             

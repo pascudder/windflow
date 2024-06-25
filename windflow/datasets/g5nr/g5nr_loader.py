@@ -49,10 +49,9 @@ class TileFlows(data.Dataset):
         self.valid_pairs = self._compute_valid_pairs()
 
         self.rand_transform = flow_transforms.Compose([
-            flow_transforms.ToTensor(images_order='CHW', flows_order='CHW'),
-            flow_transforms.RandomCrop((size, size)),
-            flow_transforms.RandomHorizontalFlip(),
-            flow_transforms.RandomVerticalFlip(),
+            flow_transforms.ToTensor(images_order='CDHW', flows_order='CDHW'),
+            flow_transforms.RandomCrop3D((size, size, size)),
+            flow_transforms.RandomFlip3D(),
         ])
 
     def _compute_valid_pairs(self):
@@ -85,17 +84,20 @@ class TileFlows(data.Dataset):
 
         if is_valid:
              ds = xr.open_mfdataset([self.files[start_idx], self.files[end_idx]])
-             h, w = ds.U.isel(time=0).shape
+             d, h, w = ds.U.isel(time=0).shape
              if self.scale_factor:
-                 h, w = int(h * self.scale_factor), int(w * self.scale_factor)
+                 d, h, w = int(d * self.scale_factor), int(h * self.scale_factor), int(w * self.scale_factor)
+                 new_lev = np.linspace(ds.lev.values[0], ds.lev.values[-1], d)
                  new_lats = np.linspace(ds.lat.values[0], ds.lat.values[-1], h)
                  new_lons = np.linspace(ds.lon.values[0], ds.lon.values[-1], w)
-                 ds = ds.interp(lat=new_lats, lon=new_lons)
+                 ds = ds.interp(lev=new_lev, lat=new_lats, lon=new_lons)
              qv = ds['QV'].values
              u = ds['U'].values
              v = ds['V'].values
-             uv = np.concatenate([u[:,np.newaxis], v[:,np.newaxis]], 1)
-             uv[~np.isfinite(uv)] = 0. 
+             # Add vertical component (assuming it's available, otherwise use zeros)
+             w = ds['W'].values if 'W' in ds else np.zeros_like(u)
+             uvw = np.stack([u, v, w], axis=1)
+             uvw[~np.isfinite(uvw)] = 0. 
              qv[~np.isfinite(qv)] = 0.
              if self.convert_cartesian:
                  lat_rad = np.radians(ds.lat.values)
@@ -103,21 +105,21 @@ class TileFlows(data.Dataset):
                  a = np.cos(lat_rad)**2 * np.sin((lon_rad[1]-lon_rad[0])/2)**2
                  d = 2 * 6378.137 * np.arcsin(a**0.5)
                  size_per_pixel = np.repeat(np.expand_dims(d, -1), len(lon_rad), axis=1) # kms
-                 uv = uv / size_per_pixel / 1000 * (self.time_step / 1000)  # Convert time_step to seconds
+                 size_per_pixel = np.repeat(size_per_pixel[np.newaxis, :, :], uvw.shape[1], axis=0)
+                 uvw = uvw / size_per_pixel / 1000 * (self.time_step / 1000)  # Convert time_step to seconds
              qv = image_histogram_equalization(qv)
              images = [q[np.newaxis] for q in qv]
-             flows = [_uv for _uv in uv]
+             flows = [_uvw for _uvw in uvw]
              images_tensor, flow_tensor = self.rand_transform(images, flows)
              return images_tensor, flow_tensor
         else:
              return None  # or some placeholder value
 
-
     def get_total_files(self):
         return len(self.files)
 
 class G5NRFlows(data.ConcatDataset):
-    def __init__(self, directory, scale_factor=None, size=None, augment=False, frames=2, convert_cartesian=True, time_step=10800000,max_samples=None):  # time_step in milliseconds
+    def __init__(self, directory, scale_factor=None, size=None, augment=False, frames=2, convert_cartesian=True, time_step=10800000, max_samples=None):  # time_step in milliseconds
         self.directory = directory
         tiles = os.listdir(directory)
         tile_paths = [os.path.join(directory, t) for t in tiles]
@@ -145,7 +147,7 @@ if __name__ == '__main__':
     for i in tqdm(range(min(num_samples_to_process, len(dataset))), desc="Processing samples"):
         try:
             result = dataset[i]
-            if result[0] is not None:  # Assuming None is returned for invalid pairs
+            if result is not None and result[0] is not None:  # Assuming None is returned for invalid pairs
                 successes += 1
             else:
                 failures += 1
