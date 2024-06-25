@@ -23,6 +23,7 @@ def get_files(folder, mode):
 
     variables = ['QV', 'U', 'V']
     var_files = {v: sorted([f for f in files if f'_{v}_' in f]) for v in variables}
+    var_files['QV'].remove('/ships19/cryo/daves/windflow/data/c1440_NR.inst30mn_3d_QV_Np.20060601_0000z.nc4')
     var_files = pd.DataFrame(var_files)
 
     N_files = len(var_files)
@@ -87,5 +88,3 @@ if __name__ == '__main__':
     training_data_folder = args.output
     make_training_data(data_folder, training_data_folder+'train', mode='train')
     make_training_data(data_folder, training_data_folder+'valid', mode='valid')
-
-
