@@ -126,7 +126,6 @@ def train_net_mp(rank, world_size, port, params):
     setup(rank, world_size, port)
     train_net(params, rank=rank)
 
-
 def run_training(args, world_size, port):
     #params['batch_size'] = params['batch_size'] // world_size
     if world_size > 1:
@@ -137,7 +136,6 @@ def run_training(args, world_size, port):
         cleanup()
     else:
         train_net(vars(args))
-
 
 if __name__ == "__main__":
     # Feb 1 2020, Band 1 hyper-parameter search

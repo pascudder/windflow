@@ -6,11 +6,10 @@ import numpy as np
 import dask as da
 import datetime as dt
 import matplotlib.pyplot as plt
-#from mpl_toolkits.basemap import Basemap
+from mpl_toolkits.basemap import Basemap
 import pyproj
 import pyresample
 from .. import utils
-
 
 def get_filename_metadata(f):
     channel = int(f.split('_')[1][-2:])
