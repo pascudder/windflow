@@ -13,7 +13,7 @@ from ..losses import CharbonnierLoss, L1Loss, L2Loss
 
 from torch.utils.tensorboard import SummaryWriter
 
-MAX_FLOW = 400
+MAX_FLOW = 200
 
 def sequence_loss(flow_preds, flow_gt, gamma=0.8, max_flow=MAX_FLOW):
     """ Loss function defined over sequence of flow predictions """
@@ -25,6 +25,7 @@ def sequence_loss(flow_preds, flow_gt, gamma=0.8, max_flow=MAX_FLOW):
     mag = torch.sum(flow_gt**2, dim=1).sqrt()
     #valid = (valid >= 0.5) & (mag < max_flow)
     valid = (mag < max_flow)
+
     for i in range(n_predictions):
         i_weight = gamma**(n_predictions - i - 1)
         i_loss = (flow_preds[i] - flow_gt).abs()
@@ -53,7 +54,7 @@ def unsupervised_sequence_loss(I0, I1, flow_pred, gamma=0.8):
 
 class RAFTTrainer(BaseTrainer):
     def __init__(self, model, model_path, iters=24, 
-                 device=None, lr=1e-5, distribute=False, 
+                 device=None, lr=0.00001, distribute=False, 
                  clip=1., rank=0):
         BaseTrainer.__init__(self, model, 'raft', model_path, lr=lr, 
                              device=device, distribute=distribute, rank=rank)        

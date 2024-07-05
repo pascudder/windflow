@@ -23,6 +23,7 @@ from windflow.datasets import get_dataset
 from windflow.networks.models import get_flow_model
 from windflow.train.trainers import get_flow_trainer
 
+
 os.environ['PYTHONWARNINGS'] = 'ignore:semaphore_tracker:UserWarning' 
 
 
@@ -144,7 +145,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_path", default="models/raft-size_512/", type=str)
     parser.add_argument("--dataset", default="g5nr", type=str)
     parser.add_argument("--data_path", default="data/G5NR_patches/",    type=str)
-    parser.add_argument("--input_frames", default=2, type=int)
+    parser.add_argument("--input_frames", default=7, type=int)
     parser.add_argument("--model_name", default="raft", type=str)
     # parser.add_argument("--gpus", default="0", type=str)
     parser.add_argument("--batch_size", default=4, type=int)

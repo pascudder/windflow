@@ -31,7 +31,7 @@ python -u train.py \
     --model_name raft \
     --batch_size 2 \
     --loss L1 \
-    --max_iterations 500 \
+    --max_iterations 5 \
     --lr 0.00001 \
     --log_step 10
 
