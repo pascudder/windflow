@@ -13,7 +13,7 @@ from ..losses import CharbonnierLoss, L1Loss, L2Loss
 
 from torch.utils.tensorboard import SummaryWriter
 
-MAX_FLOW = 200
+MAX_FLOW = 400
 
 def sequence_loss(flow_preds, flow_gt, gamma=0.8, max_flow=MAX_FLOW):
     """ Loss function defined over sequence of flow predictions """

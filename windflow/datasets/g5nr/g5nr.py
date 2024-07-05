@@ -86,7 +86,7 @@ if __name__ == '__main__':
 
     data_folder = args.data
     training_data_folder = args.output
-    make_training_data(data_folder, training_data_folder+'train', mode='train')
+    #make_training_data(data_folder, training_data_folder+'train', mode='train')
     make_training_data(data_folder, training_data_folder+'valid', mode='valid')
 
 

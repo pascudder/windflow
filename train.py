@@ -151,7 +151,7 @@ if __name__ == "__main__":
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--scale_input", default=None, type=float, help='Bilinear interpolation on input image.')
     parser.add_argument('--max_iterations',type=int, default=2000000, help='Number of training iterations')
-    parser.add_argument("--log_step", default=1000, type=int)
+    parser.add_argument("--log_step", default=100, type=int)
     parser.add_argument("--checkpoint_step", default=5000, type=int)
     parser.add_argument("--ngpus", default=1, type=int)
     parser.add_argument("--port", default=9009, type=int)

@@ -59,13 +59,8 @@ if args.n_files is None:
 else:
     N_files = args.n_files
 
-<<<<<<< HEAD
 # N_per_rank = N_files // MPI_SIZE
 # files = files.iloc[N_per_rank * MPI_RANK: N_per_rank * (MPI_RANK+1) + 1]
-=======
-N_per_rank = N_files // MPI_SIZE
-files = files.iloc[N_per_rank * MPI_RANK: N_per_rank * (MPI_RANK+1) + 1]
->>>>>>> fc4887cfb888bcb31cf0deeb75ddd54364a6f6b4
 
 # load model
 tile_size = 512

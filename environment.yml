@@ -11,7 +11,6 @@ dependencies:
   - numpy
   - pandas
   - dask
-  - xarray
   - scikit-learn
   - scipy
   - jupyter
@@ -27,6 +26,7 @@ dependencies:
   - opencv
   - zarr
   - mpi4py
+  - openmpi
   - voila
   - pip
   - ipywidgets
